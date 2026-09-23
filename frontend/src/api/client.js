@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'https://pavetrack-2.onrender.com';
+
 const client = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: API_BASE,
 });
 
 // Attach JWT token to every request
