@@ -44,4 +44,4 @@ cd frontend
 npm install
 npm run dev
 ```
-The frontend will run on `http://localhost:5173`.
+The frontend will run on `http://localhost:5174/`.

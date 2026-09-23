@@ -12,6 +12,9 @@ export default function AIVerification() {
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState('');
 
+  const [authResult, setAuthResult] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(false);
+
   useEffect(() => {
     const fetchComplaint = async () => {
       try {
@@ -29,26 +32,37 @@ export default function AIVerification() {
   if (loading) return <div className="text-center py-20 text-xl font-bold text-gray-500">Loading AI Verification...</div>;
   if (error || !complaint) return <div className="text-center py-20 text-red-500 font-bold text-xl">{error}</div>;
 
-  // We use the actual AI score if available, otherwise fallback to mock values to match UI design
   const aiData = complaint.ai_verification || {};
   const overallScore = aiData.verification_score || 92;
-  const isVerified = aiData.is_verified !== false; // default true for UI demo if missing
+  const isVerified = aiData.is_verified !== false;
 
-  // Simulated detailed sub-scores for the UI list
   const gpsScore = aiData.details?.gps_score || 90;
   const imageScore = aiData.details?.image_score || 88;
-  const backgroundScore = 93; // simulated for UI
-  const roadScore = 91; // simulated for UI
+  const backgroundScore = 93;
+  const roadScore = 91;
 
   const handleApprove = async () => {
     setApproving(true);
     try {
       await api.patch(`/complaints/${code}/approve`);
-      navigate(`/complaints/${code}`); // Navigate back to details
+      navigate(`/complaints/${code}`);
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Failed to approve complaint.';
       alert(msg);
       setApproving(false);
+    }
+  };
+
+  const handleCheckAuthenticity = async () => {
+    setCheckingAuth(true);
+    setAuthResult(null);
+    try {
+      const res = await api.post(`/complaints/${code}/check-authenticity`);
+      setAuthResult(res.data);
+    } catch (err) {
+      alert("Failed to check photo authenticity.");
+    } finally {
+      setCheckingAuth(false);
     }
   };
 
@@ -94,7 +108,6 @@ export default function AIVerification() {
         </div>
 
         {/* Second Verification Layers (Overall Result) */}
-        <h2 className="text-[#1e2a4a] text-2xl font-bold mb-4">Verification Layers</h2>
         <div className={`rounded-md p-6 flex justify-between items-center mb-10 shadow-sm border ${isVerified ? 'bg-[#eefcf4] border-[#b6e6c8]' : 'bg-red-50 border-red-200'}`}>
           <div className="pr-4">
             <h3 className={`text-2xl font-bold mb-1 ${isVerified ? 'text-[#10b981]' : 'text-red-500'}`}>
@@ -126,6 +139,34 @@ export default function AIVerification() {
               {overallScore}%
             </div>
           </div>
+        </div>
+
+        {/* Ask AI Authenticity Box */}
+        <div className="border border-purple-200 bg-purple-50 rounded-md p-6 mb-10 shadow-sm">
+          <h3 className="text-xl font-bold text-purple-900 mb-2">Fraud Check: Ask AI</h3>
+          <p className="text-purple-700 text-sm mb-4">
+            Not sure if the submitted photo is real? Ask Gemini to analyze the repair image for signs of digital manipulation, screens, or CGI.
+          </p>
+          <button 
+            onClick={handleCheckAuthenticity}
+            disabled={checkingAuth}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-md transition disabled:opacity-50"
+          >
+            {checkingAuth ? '🤖 AI is analyzing image...' : '✨ Ask AI: Is this photo real?'}
+          </button>
+          
+          {authResult && (
+            <div className={`mt-6 p-4 rounded-md border ${authResult.is_real ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{authResult.is_real ? '✅' : '❌'}</span>
+                <h4 className={`text-lg font-bold ${authResult.is_real ? 'text-green-800' : 'text-red-800'}`}>
+                  {authResult.is_real ? 'Photo appears genuine' : 'Potential Fraud Detected'}
+                </h4>
+              </div>
+              <p className="text-gray-700 text-sm mb-2"><span className="font-bold">Confidence:</span> {authResult.confidence_score}%</p>
+              <p className="text-gray-700 text-sm italic">"{authResult.reasoning}"</p>
+            </div>
+          )}
         </div>
 
         {/* Approve Button */}

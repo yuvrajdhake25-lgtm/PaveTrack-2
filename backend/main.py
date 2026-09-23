@@ -10,13 +10,20 @@ from bson import ObjectId
 
 from database import users_collection, complaints_collection
 from auth import hash_password, verify_password, create_access_token, get_current_user
-from ai_verification import compute_full_verification
+from ai_verification import compute_full_verification, check_photo_authenticity
 
 app = FastAPI(title="PaveTrack API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -135,7 +142,6 @@ def submit_repair(
     latitude: float = Form(...),
     longitude: float = Form(...),
     photo: UploadFile = File(...),
-    background_tasks: BackgroundTasks = None,
     current_user: dict = Depends(get_current_user)
 ):
     complaint = complaints_collection.find_one({"complaint_code": code})
@@ -192,6 +198,23 @@ def submit_repair(
     thread.start()
     
     return {"message": "Repair submitted. AI verification running in background.", "status": "repair_submitted"}
+
+@app.post("/complaints/{code}/check-authenticity")
+def verify_authenticity(code: str):
+    complaint = complaints_collection.find_one({"complaint_code": code})
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+        
+    repair_sub = complaint.get("repair_submission")
+    if not repair_sub or not repair_sub.get("photo_after"):
+        raise HTTPException(status_code=400, detail="No repair photo available to verify")
+        
+    photo_path = repair_sub["photo_after"]
+    if photo_path.startswith("/"): 
+        photo_path = photo_path[1:]
+        
+    result = check_photo_authenticity(photo_path)
+    return result
 
 @app.get("/complaints/{code}/verification")
 def get_verification(code: str):

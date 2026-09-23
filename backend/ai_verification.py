@@ -91,6 +91,37 @@ def run_gemini_verification(before_image_path: str, after_image_path: str) -> di
             "reasoning": f"Error running verification: {str(e)}"
         }
 
+class AuthenticitySchema(BaseModel):
+    is_real: bool
+    confidence_score: int
+    reasoning: str
+
+def check_photo_authenticity(image_path: str) -> dict:
+    if not client:
+        return {"is_real": True, "confidence_score": 99, "reasoning": "Mock: No API key."}
+    
+    try:
+        file = client.files.upload(file=image_path)
+        prompt = (
+            "Analyze this photograph. Is it a genuine, natural photo taken by a camera in the real world, "
+            "or is it a fake/spoofed image (e.g. a photo taken of a computer screen, a printout, AI generated, "
+            "or heavily edited)? Return your assessment with a confidence score (0-100) and detailed reasoning."
+        )
+        response = client.models.generate_content(
+            model='gemini-3.6-flash',
+            contents=[file, prompt],
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=AuthenticitySchema,
+                temperature=0.1
+            ),
+        )
+        import json
+        return json.loads(response.text)
+    except Exception as e:
+        print(f"Gemini authenticity error: {e}")
+        return {"is_real": False, "confidence_score": 0, "reasoning": f"Error: {str(e)}"}
+
 def compute_full_verification(complaint: dict, repair_submission: dict) -> dict:
     gps_score = gps_match_score(
         complaint.get("latitude", 0), complaint.get("longitude", 0),
