@@ -1,0 +1,11 @@
+export { default as Home } from './Home';
+export { default as Login } from './Login';
+export { default as Signup } from './Signup';
+export { default as Dashboard } from './Dashboard';
+export { default as ReportPothole } from './ReportPothole';
+export { default as TrackComplaint } from './TrackComplaint';
+export { default as PotholeDetails } from './PotholeDetails';
+export { default as AIVerification } from './AIVerification';
+export { default as BeforeAfter } from './BeforeAfter';
+export { default as PotholeMap } from './PotholeMap';
+export { default as AboutUs } from './AboutUs';
