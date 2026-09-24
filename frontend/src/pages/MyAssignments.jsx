@@ -153,7 +153,8 @@ export default function MyAssignments() {
     if (!path) return 'https://via.placeholder.com/600x400?text=No+Image';
     if (path.startsWith('http')) return path;
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    return `http://localhost:8000/${cleanPath}`;
+    const API_BASE = import.meta.env.VITE_API_URL || 'https://pavetrack-2.onrender.com';
+    return `${API_BASE}/${cleanPath}`;
   };
 
   return (

@@ -86,7 +86,8 @@ export default function PotholeDetails() {
                   if (!path) return 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80';
                   if (path.startsWith('http')) return path;
                   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-                  return `http://localhost:8000/${cleanPath}`;
+                  const API_BASE = import.meta.env.VITE_API_URL || 'https://pavetrack-2.onrender.com';
+                  return `${API_BASE}/${cleanPath}`;
                 })()}
                 alt="Pothole" 
                 className="w-full h-full object-cover"

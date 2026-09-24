@@ -39,7 +39,8 @@ export default function BeforeAfter() {
     if (!path) return fallback;
     if (path.startsWith('http')) return path;
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    return `http://localhost:8000/${cleanPath}`;
+    const API_BASE = import.meta.env.VITE_API_URL || 'https://pavetrack-2.onrender.com';
+    return `${API_BASE}/${cleanPath}`;
   };
 
   const beforeImg = getImageUrl(
