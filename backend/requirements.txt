@@ -1,7 +1,7 @@
 fastapi
-uvicorn
-pymongo
-passlib[bcrypt]
+uvicorn[standard]
+pymongo[srv]
+bcrypt
 python-jose[cryptography]
 python-multipart
 google-genai
