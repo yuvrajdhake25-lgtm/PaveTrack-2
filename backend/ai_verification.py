@@ -1,5 +1,7 @@
 import os
 import math
+import tempfile
+import urllib.request
 from google import genai
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -7,7 +9,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize Gemini Client
-# Assumes GEMINI_API_KEY is in environment variables
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     client = genai.Client(api_key=GEMINI_API_KEY)
@@ -22,11 +23,7 @@ class VerificationSchema(BaseModel):
     reasoning: str
 
 def gps_match_score(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
-    """
-    Calculate Haversine distance between two points and convert to a 0-100 score.
-    Assuming distance < 5m is 100%, and > 100m is 0%.
-    """
-    R = 6371e3  # Earth radius in meters
+    R = 6371e3
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)
@@ -38,30 +35,40 @@ def gps_match_score(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     distance = R * c
 
-    if distance <= 5:
-        return 100
-    elif distance >= 100:
-        return 0
+    if distance <= 5: return 100
+    elif distance >= 100: return 0
     else:
-        # Linear drop-off between 5m and 100m
         score = 100 - ((distance - 5) / 95.0) * 100
         return int(max(0, min(100, score)))
 
+def get_local_path(image_path: str) -> str:
+    """Helper to download HTTPS URLs to a temporary file for Gemini processing."""
+    if image_path.startswith("http"):
+        temp_fd, temp_path = tempfile.mkstemp(suffix=".jpg")
+        os.close(temp_fd)
+        urllib.request.urlretrieve(image_path, temp_path)
+        return temp_path
+    return image_path
+
+def cleanup_temp_file(image_path: str, original_path: str):
+    """Delete the temp file if we downloaded it."""
+    if original_path.startswith("http") and os.path.exists(image_path):
+        os.remove(image_path)
+
 def run_gemini_verification(before_image_path: str, after_image_path: str) -> dict:
     if not client:
-        # Mock response if no API key
         return {
-            "angle_match_score": 88,
-            "background_match_score": 93,
-            "road_region_score": 91,
-            "repair_quality_score": 95,
+            "angle_match_score": 88, "background_match_score": 93,
+            "road_region_score": 91, "repair_quality_score": 95,
             "reasoning": "Mocked response: Images show a matching background and the pothole appears filled."
         }
 
+    local_before = get_local_path(before_image_path)
+    local_after = get_local_path(after_image_path)
+
     try:
-        # Upload images to Gemini
-        before_file = client.files.upload(file=before_image_path)
-        after_file = client.files.upload(file=after_image_path)
+        before_file = client.files.upload(file=local_before)
+        after_file = client.files.upload(file=local_after)
 
         prompt = (
             "You are an AI verification assistant. Compare the 'before' image (showing a pothole) "
@@ -84,12 +91,13 @@ def run_gemini_verification(before_image_path: str, after_image_path: str) -> di
     except Exception as e:
         print(f"Gemini verification error: {e}")
         return {
-            "angle_match_score": 0,
-            "background_match_score": 0,
-            "road_region_score": 0,
-            "repair_quality_score": 0,
+            "angle_match_score": 0, "background_match_score": 0,
+            "road_region_score": 0, "repair_quality_score": 0,
             "reasoning": f"Error running verification: {str(e)}"
         }
+    finally:
+        cleanup_temp_file(local_before, before_image_path)
+        cleanup_temp_file(local_after, after_image_path)
 
 class AuthenticitySchema(BaseModel):
     is_real: bool
@@ -100,8 +108,9 @@ def check_photo_authenticity(image_path: str) -> dict:
     if not client:
         return {"is_real": True, "confidence_score": 99, "reasoning": "Mock: No API key."}
     
+    local_image = get_local_path(image_path)
     try:
-        file = client.files.upload(file=image_path)
+        file = client.files.upload(file=local_image)
         prompt = (
             "Analyze this photograph. Is it a genuine, natural photo taken by a camera in the real world, "
             "or is it a fake/spoofed image (e.g. a photo taken of a computer screen, a printout, AI generated, "
@@ -121,6 +130,8 @@ def check_photo_authenticity(image_path: str) -> dict:
     except Exception as e:
         print(f"Gemini authenticity error: {e}")
         return {"is_real": False, "confidence_score": 0, "reasoning": f"Error: {str(e)}"}
+    finally:
+        cleanup_temp_file(local_image, image_path)
 
 def compute_full_verification(complaint: dict, repair_submission: dict) -> dict:
     gps_score = gps_match_score(
@@ -131,13 +142,13 @@ def compute_full_verification(complaint: dict, repair_submission: dict) -> dict:
     before_img_path = complaint.get("photo_before", "")
     after_img_path = repair_submission.get("photo_after", "")
 
-    # Clean paths for local loading (remove leading /)
-    if before_img_path.startswith("/"): before_img_path = before_img_path[1:]
-    if after_img_path.startswith("/"): after_img_path = after_img_path[1:]
+    if before_img_path.startswith("/") and not before_img_path.startswith("http"): 
+        before_img_path = before_img_path[1:]
+    if after_img_path.startswith("/") and not after_img_path.startswith("http"): 
+        after_img_path = after_img_path[1:]
     
     gemini_result = run_gemini_verification(before_img_path, after_img_path)
 
-    # Weights: GPS 30%, Angle 20%, Background 25%, Road Region 25%
     overall_score = (
         (gps_score * 0.30) +
         (gemini_result["angle_match_score"] * 0.20) +
@@ -158,3 +169,4 @@ def compute_full_verification(complaint: dict, repair_submission: dict) -> dict:
         "needs_manual_review": needs_manual_review,
         "reasoning": gemini_result["reasoning"]
     }
+

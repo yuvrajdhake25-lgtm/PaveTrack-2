@@ -1,16 +1,15 @@
 import os
-import shutil
 from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from bson import ObjectId
 
 from database import users_collection, complaints_collection
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from ai_verification import compute_full_verification, check_photo_authenticity
+from cloudinary_upload import upload_image
 
 app = FastAPI(title="PaveTrack API")
 
@@ -34,8 +33,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.makedirs("static/potholes", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Helper to convert ObjectId to string in mongo documents
 def doc_helper(doc):
@@ -89,10 +86,10 @@ def create_complaint(
     current_user: dict = Depends(get_current_user)
 ):
     timestamp = datetime.utcnow()
-    file_path = f"static/potholes/before_{timestamp.timestamp()}_{photo.filename}"
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(photo.file, buffer)
-    
+
+    # Upload to Cloudinary — permanent, no local file needed
+    photo_url = upload_image(photo.file, folder="pavetrack/before")
+
     count = complaints_collection.count_documents({}) + 1
     complaint_code = f"PTH-{timestamp.year}-{count:05d}"
     
@@ -104,7 +101,7 @@ def create_complaint(
         "longitude": longitude,
         "severity": severity,
         "description": description,
-        "photo_before": f"/{file_path}",
+        "photo_before": photo_url,
         "status": "reported",
         "assigned_contractor": None,
         "created_at": timestamp,
@@ -154,12 +151,12 @@ def submit_repair(
         raise HTTPException(status_code=404, detail="Complaint not found")
     
     timestamp = datetime.utcnow()
-    file_path = f"static/potholes/after_{timestamp.timestamp()}_{photo.filename}"
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(photo.file, buffer)
-    
+
+    # Upload to Cloudinary — permanent, no local file needed
+    photo_url = upload_image(photo.file, folder="pavetrack/after")
+
     repair_submission = {
-        "photo_after": f"/{file_path}",
+        "photo_after": photo_url,
         "latitude": latitude,
         "longitude": longitude,
         "submitted_at": timestamp
