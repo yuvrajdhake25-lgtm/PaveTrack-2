@@ -1,87 +1,105 @@
 # PaveTrack 🛣️
-**AI-Assisted Civic Repair Accountability Platform**
 
-> **The Problem isn't only that potholes go unreported. The bigger problem is knowing whether a reported pothole was actually repaired.** 
->
-> PaveTrack moves beyond standard civic reporting apps by enforcing a traceable, AI-verified accountability lifecycle. It ensures that when a contractor changes a status to "Repaired," they must submit cryptographic and visual evidence that enters an AI assessment workflow before the issue is closed.
+**An AI-Assisted Civic Repair Accountability Platform**
+
+PaveTrack is an end-to-end lifecycle management platform designed to solve a critical gap in civic infrastructure: **accountability**. 
+
+While many apps allow citizens to report potholes, very few provide a transparent, traceable workflow to prove that the reported issue was *actually repaired*. PaveTrack bridges this gap by connecting citizens, municipalities, and contractors into a single ecosystem, capped off by an innovative AI-assisted verification layer.
 
 ---
 
-## 🚀 Key Innovation
-The core differentiator of PaveTrack is the **Repair Verification Lifecycle**. We use multimodal AI (Google Gemini Vision) not as a gimmick, but as an objective verification layer. A contractor cannot simply close a ticket; they must upload an after-repair photo with GPS metadata. The AI scores the submission based on location consistency, camera angle, background matching, and repair quality.
+## 🛑 The Problem
+The problem isn't only that potholes go unreported. The bigger problem is **knowing whether a reported pothole was actually repaired**. Citizens lack transparency, and municipalities lack the manpower to physically inspect every contractor's claimed repair.
 
-## 🔄 The Workflow (One Pothole's Journey)
-1. **Citizen Report:** A citizen reports a pothole, capturing an image and GPS coordinates.
-2. **Municipal Triage:** The municipality reviews the report on a geospatial dashboard and assigns a contractor.
-3. **Contractor Repair:** The contractor performs the work and submits an "After" photo with fresh GPS metadata.
-4. **AI Verification:** The system compares the Before/After evidence.
-5. **Resolution:** If the AI confidence score is >75%, the repair is verified and closed. Otherwise, it is flagged for manual municipal review.
+## 💡 The Solution
+PaveTrack follows the entire repair lifecycle. It replaces disjointed reporting dashboards with a unified accountability system:
+**Report** ➔ **Assign** ➔ **Repair & Submit Evidence** ➔ **Verify (AI)** ➔ **Resolve**
+
+## 🚀 Key Innovation: AI-Assisted Verification
+Our strongest differentiator is the **repair-verification workflow**. Contractors cannot simply change a ticket status to "Repaired." They must submit geographic and photographic evidence, which enters an automated verification pipeline.
+
+### AI Verification Methodology
+We utilize **Google Gemini 3.6 Flash** (Multimodal Vision AI) combined with spatial calculations to act as a preliminary inspection layer. The AI evaluates:
+1. **GPS Coordinate Match:** Haversine distance calculation between the initial report and the repair submission.
+2. **Camera Angle Consistency:** Ensuring the contractor's photo matches the perspective of the citizen's report.
+3. **Background/Surroundings Match:** Verifying permanent fixtures (trees, curbs, buildings) to confirm location authenticity.
+4. **Repair Quality Assessment:** Analyzing the road region to determine if the pothole has been adequately filled and paved.
+
+If the AI confidence score drops below a threshold, the system automatically flags the ticket for **Manual Review** by the municipality.
+
+---
 
 ## 🏗️ Architecture & Tech Stack
-PaveTrack is a modern, decoupled full-stack application.
-* **Frontend:** React, Vite, Tailwind CSS, Lucide Icons
-* **Backend:** FastAPI (Python), Uvicorn
-* **Database:** MongoDB Atlas (NoSQL Document Store)
-* **Storage:** Cloudinary (Permanent Cloud Image Hosting)
-* **AI Engine:** Google Gemini Pro Vision 3.6 (Multimodal Assessment)
-* **Maps:** OpenStreetMap (OSM) via Leaflet
 
-## 🧠 AI Verification Methodology
-Our AI integration does not claim to replace physical ground-truth inspection. Instead, it acts as an **AI-Assisted Evidence Assessment**.
-The verification engine receives the original report data and the contractor's repair submission. It calculates a unified score based on:
-1. **Haversine GPS Match:** Mathematical distance between the two coordinate sets.
-2. **Camera Angle Consistency:** Assessed via Gemini Vision.
-3. **Background Match:** Surrounding environmental consistency.
-4. **Repair Quality:** Visual confirmation of fresh asphalt/concrete filling the original void.
+* **Frontend:** React.js (Vite), TailwindCSS, Lucide Icons, Leaflet (Maps)
+* **Backend:** Python, FastAPI, Uvicorn
+* **Database:** MongoDB Atlas (NoSQL)
+* **Cloud Storage:** Cloudinary (Permanent HTTPS image hosting)
+* **AI Engine:** Google Gemini SDK (`google-genai`)
 
-## 👥 User Roles & Ecosystem
-PaveTrack connects three isolated silos into one accountability chain:
-* **Citizen:** Report, Track, and Hold Accountable
-* **Municipality:** Manage, Assign, and Audit
-* **Contractor:** Repair and Submit Proof
+## 👥 User Roles (The Ecosystem)
 
-## 📸 Screenshots
-*(Add screenshots of your UI here: The Map Dashboard, The Before/After Comparison, and the AI Breakdown)*
+* **Citizen:** Reports issues with GPS & photos, tracks status, and reviews final AI verification to close the ticket.
+* **Municipality:** Manages incoming reports, assigns them to contractors, and handles edge-case manual reviews.
+* **Contractor:** Receives assignments, travels to the location, completes the work, and uploads "After" photographic evidence.
 
-## ⚙️ Setup & Local Development
+---
 
-### Prerequisites
-- Node.js (v18+)
-- Python (3.10+)
-- MongoDB Atlas Account
-- Cloudinary Account
-- Gemini API Key
+## ⚙️ Setup & Installation
 
-### Backend Setup
+### 1. Clone the Repository
+```bash
+git clone https://github.com/yuvrajdhake25-lgtm/PaveTrack-2.git
+cd "PaveTrack 2"
+```
+
+### 2. Backend Setup (FastAPI)
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # (or `venv\Scripts\activate` on Windows)
 pip install -r requirements.txt
-# Create a .env file with MONGO_URI, GEMINI_API_KEY, CLOUDINARY_*, and JWT_SECRET
+```
+Create a `.env` file in the `/backend` directory:
+```env
+PORT=5000
+JWT_SECRET=your_secret_key
+MONGO_URI=your_mongodb_cluster_url
+GEMINI_API_KEY=your_google_gemini_key
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_key
+CLOUDINARY_API_SECRET=your_cloudinary_secret
+```
+Run the server:
+```bash
 uvicorn main:app --reload
 ```
 
-### Frontend Setup
+### 3. Frontend Setup (React/Vite)
 ```bash
 cd frontend
 npm install
-# Create a .env.local file with VITE_API_URL=http://localhost:8000
+```
+Create a `.env.local` file in the `/frontend` directory:
+```env
+VITE_API_URL=http://localhost:8000
+```
+Run the client:
+```bash
 npm run dev
 ```
 
-## 🔑 Demo Credentials
-To evaluate the platform, use the following test accounts:
+---
+
+## 🧪 Demo Credentials
+To experience the full lifecycle, you can create a new account or use these generic test accounts (ensure roles are set in your DB):
 * **Citizen:** `citizen@test.com` / `password123`
-* **Municipality:** `muni@test.com` / `password123`
+* **Municipality:** `admin@test.com` / `password123`
 * **Contractor:** `contractor@test.com` / `password123`
 
-## 🚧 Limitations & Future Scope
-* **Current Limitation:** Image-based AI is susceptible to spoofing (e.g., taking a photo of a screen).
-* **Future Scope:** Implement cryptographic device metadata hashing, forced in-app camera capture (disallowing gallery uploads), and tight geofencing to guarantee the contractor is physically standing on the pothole coordinates when submitting evidence.
+---
 
-## 🎥 Demo Video
-*(Link your YouTube demo video here)*
+## ⚠️ Limitations & Future Scope
+* **AI Limitations:** Image-based AI is *not* equivalent to ground-truth physical inspection. It is an "assistive" layer designed to filter out obvious fraud and reduce municipal workload.
+* **Future Enhancements:** A production system would add stronger anti-spoofing controls, including signed EXIF timestamps, strict geofencing enforcement (preventing uploads if the device is not physically at the GPS coordinates), and device metadata validation.
 
 ---
-*Built with ❤️ by Pixel Paradox.*
+*Built as a technical case study for civic infrastructure accountability.*
