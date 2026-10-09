@@ -3,7 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import { getComplaints } from '../api/complaints';
 import api from '../api/client';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { ClipboardList, Clock, Check, ChevronRight, X } from 'lucide-react';
+import { ClipboardList, Clock, Check, ChevronRight, X, Brain, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -40,9 +40,9 @@ export default function MunicipalDashboard() {
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
   const total = complaints.length;
-  const pending = complaints.filter(c => c.status === 'reported').length;
-  const inProgress = complaints.filter(c => !['reported', 'closed'].includes(c.status)).length;
-  const resolved = complaints.filter(c => c.status === 'closed').length;
+  const unresolved = complaints.filter(c => c.status !== 'closed').length;
+  const aiVerified = complaints.filter(c => c.status === 'ai_verified' || c.status === 'closed').length;
+  const manualReviews = complaints.filter(c => c.status === 'manual_review').length;
 
   const handleAssign = async () => {
     if (!contractorName.trim()) return;
@@ -67,12 +67,13 @@ export default function MunicipalDashboard() {
       work_started: 'bg-orange-100 text-orange-700',
       repair_submitted: 'bg-teal-100 text-teal-700',
       ai_verified: 'bg-green-100 text-green-700',
+      manual_review: 'bg-red-100 text-red-700',
       closed: 'bg-green-200 text-green-800',
     };
     const label = {
       reported: 'Reported', verified: 'Verified', assigned: 'Assigned',
       work_started: 'Work Started', repair_submitted: 'Repair Submitted',
-      ai_verified: 'AI Verified', closed: 'Resolved'
+      ai_verified: 'AI Verified', manual_review: 'Manual Review', closed: 'Resolved'
     };
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-bold ${map[status] || 'bg-gray-100 text-gray-600'}`}>
@@ -100,15 +101,15 @@ export default function MunicipalDashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-extrabold text-[#1e2a4a] mb-1">Hello, {user?.name || 'Municipal Officer'}!</h1>
-          <p className="text-gray-500 font-medium">Municipal Dashboard — Manage all pothole complaints</p>
+          <p className="text-gray-500 font-medium">Municipal Dashboard — Manage accountability and repair workflows</p>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-          <StatCard icon={ClipboardList} color="text-blue-600" bg="bg-blue-100" title="Total Complaints" value={total} />
-          <StatCard icon={Clock} color="text-orange-500" bg="bg-orange-100" title="Pending" value={pending} />
-          <StatCard icon={Clock} color="text-yellow-600" bg="bg-yellow-100" title="In Progress" value={inProgress} />
-          <StatCard icon={Check} color="text-green-600" bg="bg-green-200" title="Resolved" value={resolved} />
+          <StatCard icon={ClipboardList} color="text-blue-600" bg="bg-blue-100" title="Total Reports" value={total} />
+          <StatCard icon={Clock} color="text-orange-500" bg="bg-orange-100" title="Unresolved Issues" value={unresolved} />
+          <StatCard icon={Brain} color="text-green-600" bg="bg-green-100" title="AI-Verified Repairs" value={aiVerified} />
+          <StatCard icon={AlertTriangle} color="text-red-600" bg="bg-red-100" title="Manual Reviews Needed" value={manualReviews} />
         </div>
 
         {/* Main Layout */}
