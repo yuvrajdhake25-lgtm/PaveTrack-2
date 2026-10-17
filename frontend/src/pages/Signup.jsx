@@ -7,7 +7,7 @@ export default function Signup() {
   const { loginContext } = useContext(AuthContext);
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    name: '', email: '', password: '', phone: '', role: 'citizen', area: ''
+    name: '', email: '', password: '', phone: '', role: 'citizen', area: '', admin_code: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,13 +34,14 @@ export default function Signup() {
     { value: 'citizen', label: 'Citizen' },
     { value: 'municipal', label: 'Municipal' },
     { value: 'contractor', label: 'Contractor' },
+    { value: 'admin', label: 'Admin 🛡️' },
   ];
 
   return (
     <div className="flex items-center justify-center flex-grow bg-gray-100 py-12 px-4">
       <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-md">
         <h2 className="text-3xl font-bold text-blue-900 mb-2 text-center">Join PaveTrack</h2>
-        <p className="text-gray-500 text-center mb-6">Create an account to report and track potholes</p>
+        <p className="text-gray-500 text-center mb-6">Create an account to report, track, and verify repairs</p>
 
         {error && <div className="bg-red-100 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
 
@@ -48,15 +49,15 @@ export default function Signup() {
           {/* Role Selector */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Account Type</label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {roles.map(r => (
                 <button
                   key={r.value}
                   type="button"
                   onClick={() => setForm({ ...form, role: r.value })}
-                  className={`flex-1 py-2.5 rounded-full font-bold text-sm border-2 transition ${
+                  className={`py-2 px-1 rounded-xl font-bold text-xs border-2 transition text-center ${
                     form.role === r.value
-                      ? 'bg-[#3b5998] border-[#3b5998] text-white'
+                      ? 'bg-[#3b5998] border-[#3b5998] text-white shadow-sm'
                       : 'bg-white border-gray-300 text-gray-600 hover:border-[#3b5998]'
                   }`}
                 >
@@ -66,9 +67,41 @@ export default function Signup() {
             </div>
           </div>
 
+          {/* Role Notices */}
+          {(form.role === 'municipal' || form.role === 'contractor') && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+              <p className="font-bold mb-0.5">🔒 Verification Required</p>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                {form.role === 'municipal' ? 'Municipal' : 'Contractor'} accounts hold operational authority. An administrator must verify and approve your account before task management is unlocked. You will have full access to public features (Report, Track, Map) upon sign up.
+              </p>
+            </div>
+          )}
+
+          {form.role === 'admin' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900">
+              <p className="font-bold mb-0.5">🛡️ Administrator Account</p>
+              <p className="text-[11px] text-blue-800 leading-relaxed">
+                System administrators can approve municipal authorities and contractors. Requires the official Admin Security Passcode.
+              </p>
+            </div>
+          )}
+
           <Field label="Full Name" name="name" type="text" placeholder="Jane Citizen" value={form.name} onChange={handleChange} required />
           <Field label="Email Address" name="email" type="email" placeholder="jane@example.com" value={form.email} onChange={handleChange} required />
           <Field label="Password" name="password" type="password" placeholder="Minimum 6 characters" value={form.password} onChange={handleChange} required />
+          
+          {form.role === 'admin' && (
+            <Field 
+              label="Admin Security Passcode" 
+              name="admin_code" 
+              type="password" 
+              placeholder="Enter passcode (e.g. PAVETRACK_ADMIN_2026)" 
+              value={form.admin_code} 
+              onChange={handleChange} 
+              required 
+            />
+          )}
+
           <Field label="Phone Number" name="phone" type="tel" placeholder="Optional" value={form.phone} onChange={handleChange} />
           <Field label="Area / City" name="area" type="text" placeholder="e.g. Navi Mumbai" value={form.area} onChange={handleChange} />
 

@@ -19,6 +19,9 @@ import BeforeAfter from './pages/BeforeAfter';
 import PotholeMap from './pages/PotholeMap';
 import AboutUs from './pages/AboutUs';
 
+import AdminDashboard from './pages/AdminDashboard';
+import PendingApproval from './pages/PendingApproval';
+
 const ProtectedRoute = ({ children }) => {
   const { user } = React.useContext(AuthContext);
   if (!user) {
@@ -27,12 +30,56 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Renders the correct dashboard based on user role
+const AdminRoute = ({ children }) => {
+  const { user } = React.useContext(AuthContext);
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  return children;
+};
+
+const MunicipalRoute = ({ children }) => {
+  const { user } = React.useContext(AuthContext);
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'municipal' && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user.role === 'municipal' && user.approval_status === 'pending') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
+
+const ContractorRoute = ({ children }) => {
+  const { user } = React.useContext(AuthContext);
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'contractor' && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user.role === 'contractor' && user.approval_status === 'pending') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
+
+// Renders the correct dashboard based on user role and approval status
 const RoleDashboard = () => {
   const { user } = React.useContext(AuthContext);
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role === 'municipal') return <MunicipalDashboard />;
-  if (user.role === 'contractor') return <ContractorDashboard />;
+
+  if (user.role === 'admin') {
+    return <AdminDashboard />;
+  }
+
+  if (user.role === 'municipal') {
+    if (user.approval_status === 'pending') {
+      return <PendingApproval />;
+    }
+    return <MunicipalDashboard />;
+  }
+
+  if (user.role === 'contractor') {
+    if (user.approval_status === 'pending') {
+      return <PendingApproval />;
+    }
+    return <ContractorDashboard />;
+  }
+
   return <Dashboard />;
 };
 
@@ -44,6 +91,7 @@ function App() {
           <Navbar />
           <main className="flex-grow flex flex-col">
             <Routes>
+              {/* Public & Citizen Accessible Pages */}
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
@@ -53,26 +101,40 @@ function App() {
               <Route path="/complaints/:code/verification" element={<AIVerification />} />
               <Route path="/complaints/:code/comparison" element={<BeforeAfter />} />
               <Route path="/map" element={<PotholeMap />} />
-              <Route path="/all-complaints" element={
+              
+              {/* Report Pothole (available to logged-in users including pending accounts) */}
+              <Route path="/report" element={
                 <ProtectedRoute>
-                  <AllComplaints />
-                </ProtectedRoute>
-              } />
-              <Route path="/my-assignments" element={
-                <ProtectedRoute>
-                  <MyAssignments />
+                  <ReportPothole />
                 </ProtectedRoute>
               } />
 
+              {/* Central Dynamic Role Dashboard (shows PendingApproval when pending) */}
               <Route path="/dashboard" element={
                 <ProtectedRoute>
                   <RoleDashboard />
                 </ProtectedRoute>
               } />
-              <Route path="/report" element={
-                <ProtectedRoute>
-                  <ReportPothole />
-                </ProtectedRoute>
+
+              {/* Dedicated Admin Portal */}
+              <Route path="/admin" element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
+              } />
+
+              {/* Municipal Only Task Pages (Blocked if pending) */}
+              <Route path="/all-complaints" element={
+                <MunicipalRoute>
+                  <AllComplaints />
+                </MunicipalRoute>
+              } />
+
+              {/* Contractor Only Task Pages (Blocked if pending) */}
+              <Route path="/my-assignments" element={
+                <ContractorRoute>
+                  <MyAssignments />
+                </ContractorRoute>
               } />
             </Routes>
           </main>

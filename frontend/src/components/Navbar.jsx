@@ -68,22 +68,56 @@ export default function Navbar() {
 
             {/* Dropdown for authenticated users */}
             {dropdownOpen && user && (
-              <div className="absolute right-0 top-12 w-48 bg-white border rounded shadow-lg py-2 mt-2">
-                <div className="px-4 py-2 border-b">
-                  <p className="text-sm font-semibold">{user.name || 'User'}</p>
-                  <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              <div className="absolute right-0 top-12 w-52 bg-white border border-gray-200 rounded-2xl shadow-xl py-2 mt-2 z-50 text-left">
+                <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
+                  <p className="text-sm font-bold text-gray-800">{user.name || 'User'}</p>
+                  <p className="text-xs text-gray-500 truncate mb-1">{user.email}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="capitalize text-[11px] font-bold text-gray-700 bg-gray-200 px-2 py-0.5 rounded-md">
+                      {user.role}
+                    </span>
+                    {user.approval_status === 'pending' && (
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                        Pending
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <Link to="/dashboard" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">Dashboard</Link>
-                {user.role === 'municipal' && (
-                  <Link to="/all-complaints" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">All Complaints</Link>
+
+                <Link to="/dashboard" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium">
+                  {user.role === 'admin' ? '🛡️ Admin Portal' : 'Dashboard'}
+                </Link>
+
+                {user.role === 'admin' && (
+                  <Link to="/admin" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 font-bold">
+                    Account Approvals
+                  </Link>
                 )}
-                {user.role === 'contractor' && (
-                  <Link to="/my-assignments" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">My Assignments</Link>
+
+                {user.role === 'municipal' && user.approval_status === 'approved' && (
+                  <Link to="/all-complaints" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                    All Complaints
+                  </Link>
                 )}
-                {(!user.role || user.role === 'citizen') && (
-                  <Link to="/report" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">Report Pothole</Link>
+
+                {user.role === 'contractor' && user.approval_status === 'approved' && (
+                  <Link to="/my-assignments" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                    My Assignments
+                  </Link>
                 )}
-                <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Logout</button>
+
+                {/* Permitted for Citizens and Pending Users */}
+                {(!user.role || user.role === 'citizen' || user.approval_status === 'pending') && (
+                  <Link to="/report" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                    Report Pothole
+                  </Link>
+                )}
+
+                <div className="border-t border-gray-100 mt-1 pt-1">
+                  <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium">
+                    Sign Out
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -92,30 +126,45 @@ export default function Navbar() {
 
       {/* Mobile Menu Dropdown — role-based */}
       {menuOpen && (
-        <div className="absolute top-20 left-0 w-64 bg-white border shadow-lg rounded-br-lg py-2 z-50">
+        <div className="absolute top-20 left-0 w-64 bg-white border shadow-lg rounded-br-2xl py-2 z-50">
           <Link to="/" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-gray-800 hover:bg-gray-50 border-b">Home</Link>
           <Link to="/track" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-gray-800 hover:bg-gray-50 border-b">Track Complaint</Link>
           <Link to="/map" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-gray-800 hover:bg-gray-50 border-b">Map View</Link>
 
-          {/* Citizen-only */}
-          {(!user || user.role === 'citizen') && (
+          {/* Citizen-only or Pending users */}
+          {(!user || user.role === 'citizen' || user.approval_status === 'pending') && (
             <Link to="/report" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-gray-800 hover:bg-gray-50 border-b">Report Pothole</Link>
           )}
 
-          {/* Municipal-only */}
-          {user?.role === 'municipal' && (
+          {/* Admin */}
+          {user?.role === 'admin' && (
+            <>
+              <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-blue-700 font-bold hover:bg-blue-50 border-b">🛡️ Admin Portal</Link>
+              <Link to="/admin" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-blue-700 font-bold hover:bg-blue-50 border-b">Account Approvals</Link>
+            </>
+          )}
+
+          {/* Municipal-only (Approved) */}
+          {user?.role === 'municipal' && user?.approval_status === 'approved' && (
             <>
               <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-[#3b5998] font-bold hover:bg-gray-50 border-b">Dashboard</Link>
               <Link to="/all-complaints" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-[#3b5998] font-bold hover:bg-gray-50 border-b">All Complaints</Link>
             </>
           )}
 
-          {/* Contractor-only */}
-          {user?.role === 'contractor' && (
+          {/* Contractor-only (Approved) */}
+          {user?.role === 'contractor' && user?.approval_status === 'approved' && (
             <>
               <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-[#3b5998] font-bold hover:bg-gray-50 border-b">Dashboard</Link>
               <Link to="/my-assignments" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-[#3b5998] font-bold hover:bg-gray-50 border-b">My Assignments</Link>
             </>
+          )}
+
+          {/* Pending Approval notice for mobile */}
+          {user && user.approval_status === 'pending' && (
+            <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-amber-700 font-bold bg-amber-50 border-b">
+              ⏳ Verification Pending
+            </Link>
           )}
 
           <Link to="/about" onClick={() => setMenuOpen(false)} className="block px-6 py-3 text-gray-800 hover:bg-gray-50">About Us</Link>

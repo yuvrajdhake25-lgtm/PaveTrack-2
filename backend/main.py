@@ -10,8 +10,15 @@ from database import users_collection, complaints_collection
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from ai_verification import compute_full_verification, check_photo_authenticity
 from cloudinary_upload import upload_image
+from init_approvals import init_users
 
 app = FastAPI(title="PaveTrack API")
+
+# Ensure admin accounts and schema integrity on boot
+try:
+    init_users()
+except Exception as e:
+    print(f"Warning: init_users failed: {e}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,6 +56,7 @@ class SignupModel(BaseModel):
     phone: Optional[str] = None
     role: str = "citizen"
     area: Optional[str] = None
+    admin_code: Optional[str] = None
 
 class LoginModel(BaseModel):
     email: str
@@ -62,9 +70,35 @@ def signup(user: SignupModel):
     user_dict = user.dict()
     user_dict["password_hash"] = hash_password(user.password)
     del user_dict["password"]
+    admin_code = user_dict.pop("admin_code", None)
+
+    # Process role & approval requirements
+    if user.role == "admin":
+        if admin_code != "PAVETRACK_ADMIN_2026":
+            raise HTTPException(status_code=403, detail="Invalid Admin Security Passcode")
+        user_dict["approval_status"] = "approved"
+    elif user.role in ["municipal", "contractor"]:
+        user_dict["approval_status"] = "pending"
+    else:
+        user_dict["role"] = "citizen"
+        user_dict["approval_status"] = "approved"
+
+    user_dict["created_at"] = datetime.utcnow()
     
     result = users_collection.insert_one(user_dict)
-    return {"message": "User created successfully", "user_id": str(result.inserted_id)}
+    
+    msg = (
+        "User account created successfully."
+        if user_dict["approval_status"] == "approved"
+        else f"Account created! Your {user.role.capitalize()} account is pending administrative approval."
+    )
+    
+    return {
+        "message": msg,
+        "user_id": str(result.inserted_id),
+        "approval_status": user_dict["approval_status"],
+        "role": user_dict["role"]
+    }
 
 @app.post("/auth/login")
 def login(user: LoginModel):
@@ -72,8 +106,101 @@ def login(user: LoginModel):
     if not db_user or not verify_password(user.password, db_user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    token = create_access_token(data={"sub": str(db_user["_id"]), "role": db_user.get("role")})
+    # Ensure approval_status is set for legacy records
+    approval_status = db_user.get("approval_status")
+    if not approval_status:
+        approval_status = "approved" if db_user.get("role") in ["citizen", "admin"] else "pending"
+        users_collection.update_one({"_id": db_user["_id"]}, {"$set": {"approval_status": approval_status}})
+        db_user["approval_status"] = approval_status
+
+    token = create_access_token(data={
+        "sub": str(db_user["_id"]),
+        "role": db_user.get("role"),
+        "approval_status": approval_status
+    })
     return {"access_token": token, "token_type": "bearer", "user": doc_helper(db_user)}
+
+@app.get("/auth/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    user_id = current_user.get("sub")
+    db_user = users_collection.find_one({"_id": ObjectId(user_id)}, {"password_hash": 0})
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return doc_helper(db_user)
+
+@app.get("/approvals/pending")
+def get_pending_approvals(current_user: dict = Depends(get_current_user)):
+    role = current_user.get("role")
+    if role not in ["admin", "municipal"]:
+        raise HTTPException(status_code=403, detail="Access denied. Must be Admin or Municipal.")
+    
+    status_filter = {"$in": ["pending", None]}
+    if role == "municipal":
+        query = {"role": "contractor", "$or": [{"approval_status": "pending"}, {"approval_status": {"$exists": False}}]}
+    else:
+        query = {"role": {"$in": ["municipal", "contractor"]}, "$or": [{"approval_status": "pending"}, {"approval_status": {"$exists": False}}]}
+        
+    pending = list(users_collection.find(query, {"password_hash": 0}).sort("created_at", -1))
+    return [doc_helper(u) for u in pending]
+
+@app.get("/admin/users")
+def get_all_users(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    users = list(users_collection.find({}, {"password_hash": 0}).sort("created_at", -1))
+    return [doc_helper(u) for u in users]
+
+@app.patch("/approvals/{user_id}/approve")
+def approve_user_account(user_id: str, current_user: dict = Depends(get_current_user)):
+    operator_role = current_user.get("role")
+    if operator_role not in ["admin", "municipal"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    target_user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if operator_role == "municipal" and target_user.get("role") != "contractor":
+        raise HTTPException(status_code=403, detail="Municipal authorities can only approve contractor accounts")
+    
+    timestamp = datetime.utcnow()
+    users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "approval_status": "approved",
+                "approved_by": current_user.get("sub"),
+                "approved_at": timestamp
+            }
+        }
+    )
+    return {"message": f"Successfully approved {target_user.get('name')} as {target_user.get('role')}."}
+
+@app.patch("/approvals/{user_id}/reject")
+def reject_user_account(user_id: str, current_user: dict = Depends(get_current_user)):
+    operator_role = current_user.get("role")
+    if operator_role not in ["admin", "municipal"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    target_user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if operator_role == "municipal" and target_user.get("role") != "contractor":
+        raise HTTPException(status_code=403, detail="Municipal authorities can only manage contractor accounts")
+    
+    timestamp = datetime.utcnow()
+    users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "approval_status": "rejected",
+                "rejected_by": current_user.get("sub"),
+                "rejected_at": timestamp
+            }
+        }
+    )
+    return {"message": f"Account request for {target_user.get('name')} was rejected."}
 
 @app.post("/complaints")
 def create_complaint(
@@ -138,6 +265,19 @@ def get_complaint(code: str):
         raise HTTPException(status_code=404, detail="Complaint not found")
     return doc_helper(complaint)
 
+def check_user_approved(current_user: dict):
+    user_id = current_user.get("sub")
+    db_user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not db_user:
+        raise HTTPException(status_code=401, detail="User not found")
+    role = db_user.get("role")
+    if role in ["municipal", "contractor"] and db_user.get("approval_status") != "approved":
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Your {role} account is pending administrative approval. Access restricted."
+        )
+    return db_user
+
 @app.post("/complaints/{code}/repair-submission")
 def submit_repair(
     code: str,
@@ -146,6 +286,7 @@ def submit_repair(
     photo: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
+    check_user_approved(current_user)
     complaint = complaints_collection.find_one({"complaint_code": code})
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
@@ -255,6 +396,7 @@ class AssignModel(BaseModel):
 
 @app.patch("/complaints/{code}/assign")
 def assign_complaint(code: str, body: AssignModel, current_user: dict = Depends(get_current_user)):
+    check_user_approved(current_user)
     complaint = complaints_collection.find_one({"complaint_code": code})
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
@@ -274,6 +416,7 @@ def assign_complaint(code: str, body: AssignModel, current_user: dict = Depends(
 
 @app.patch("/complaints/{code}/work-started")
 def mark_work_started(code: str, current_user: dict = Depends(get_current_user)):
+    check_user_approved(current_user)
     complaint = complaints_collection.find_one({"complaint_code": code})
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")

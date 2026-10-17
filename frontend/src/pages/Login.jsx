@@ -74,10 +74,14 @@ export default function Login() {
           <Link to="/signup" className="text-blue-700 font-semibold hover:underline">Sign up</Link>
         </p>
 
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
-          <strong>Demo accounts:</strong><br />
-          Citizen: jane@example.com / password<br />
-          Admin: admin@example.com / admin
+        <div className="mt-5 p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
+          <p className="font-bold text-blue-950 uppercase tracking-wider text-[10px] mb-1">Standard Demo Accounts:</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
+            <div><strong>🛡️ Admin:</strong> <span className="font-mono">admin@pavetrack.gov</span> / <span className="font-mono">admin123</span></div>
+            <div><strong>🏛️ Municipal:</strong> <span className="font-mono">muncipal12@gmail.com</span> / <span className="font-mono">password</span></div>
+            <div><strong>🛠️ Contractor:</strong> <span className="font-mono">contractor12@gmail.com</span> / <span className="font-mono">password</span></div>
+            <div><strong>👤 Citizen:</strong> <span className="font-mono">jane@example.com</span> / <span className="font-mono">password</span></div>
+          </div>
         </div>
       </div>
     </div>

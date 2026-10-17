@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { getComplaints } from '../api/complaints';
+import { getComplaints, getPendingApprovals, approveUser, rejectUser } from '../api/complaints';
 import api from '../api/client';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { ClipboardList, Clock, Check, ChevronRight, X, Brain, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Clock, Check, ChevronRight, X, Brain, AlertTriangle, Wrench, UserCheck, UserX, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -18,24 +18,62 @@ L.Icon.Default.mergeOptions({
 export default function MunicipalDashboard() {
   const { user } = useContext(AuthContext);
   const [complaints, setComplaints] = useState([]);
+  const [pendingContractors, setPendingContractors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assignModal, setAssignModal] = useState(null); // holds complaint_code
   const [contractorName, setContractorName] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [activeTab, setActiveTab] = useState('complaints'); // 'complaints' | 'contractors'
+  const [actionLoading, setActionLoading] = useState('');
+  const [approvalFeedback, setApprovalFeedback] = useState('');
   const navigate = useNavigate();
 
-  const fetchComplaints = async () => {
+  const fetchDashboardData = async () => {
+    setLoading(true);
     try {
-      const data = await getComplaints();
-      setComplaints(data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      const [complaintsData, contractorsData] = await Promise.all([
+        getComplaints(),
+        getPendingApprovals().catch(() => [])
+      ]);
+      setComplaints((complaintsData || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setPendingContractors(contractorsData || []);
     } catch (err) {
-      console.error('Failed to load complaints');
+      console.error('Failed to load municipal dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchComplaints(); }, []);
+  useEffect(() => { fetchDashboardData(); }, []);
+
+  const handleApproveContractor = async (contractorId, name) => {
+    setActionLoading(contractorId);
+    setApprovalFeedback('');
+    try {
+      await approveUser(contractorId);
+      setApprovalFeedback(`Authorized contractor: ${name}`);
+      setPendingContractors(prev => prev.filter(c => c._id !== contractorId));
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to approve contractor');
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const handleRejectContractor = async (contractorId, name) => {
+    if (!window.confirm(`Reject contractor registration for ${name}?`)) return;
+    setActionLoading(contractorId);
+    setApprovalFeedback('');
+    try {
+      await rejectUser(contractorId);
+      setApprovalFeedback(`Rejected registration for ${name}`);
+      setPendingContractors(prev => prev.filter(c => c._id !== contractorId));
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to reject contractor');
+    } finally {
+      setActionLoading('');
+    }
+  };
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
@@ -51,7 +89,7 @@ export default function MunicipalDashboard() {
       await api.patch(`/complaints/${assignModal}/assign`, { contractor_name: contractorName });
       setAssignModal(null);
       setContractorName('');
-      fetchComplaints();
+      fetchDashboardData();
     } catch (err) {
       alert('Failed to assign contractor');
     } finally {
@@ -99,20 +137,133 @@ export default function MunicipalDashboard() {
       <div className="container mx-auto max-w-6xl">
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-[#1e2a4a] mb-1">Hello, {user?.name || 'Municipal Officer'}!</h1>
-          <p className="text-gray-500 font-medium">Municipal Dashboard — Manage accountability and repair workflows</p>
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-[#1e2a4a] mb-1">Hello, {user?.name || 'Municipal Officer'}!</h1>
+            <p className="text-gray-500 font-medium">Municipal Dashboard — Manage accountability, road works, and contractor authorization</p>
+          </div>
+          <button
+            onClick={fetchDashboardData}
+            disabled={loading}
+            className="self-start md:self-auto bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-xl text-xs font-bold text-[#1e2a4a] shadow-sm transition"
+          >
+            Refresh Data
+          </button>
         </div>
 
+        {/* Feedback Banner */}
+        {approvalFeedback && (
+          <div className="bg-green-100 border border-green-300 text-green-800 p-4 rounded-xl text-xs font-bold mb-6 flex justify-between items-center">
+            <span>{approvalFeedback}</span>
+            <button onClick={() => setApprovalFeedback('')} className="text-green-700 hover:text-black">✕</button>
+          </div>
+        )}
+
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <StatCard icon={ClipboardList} color="text-blue-600" bg="bg-blue-100" title="Total Reports" value={total} />
           <StatCard icon={Clock} color="text-orange-500" bg="bg-orange-100" title="Unresolved Issues" value={unresolved} />
           <StatCard icon={Brain} color="text-green-600" bg="bg-green-100" title="AI-Verified Repairs" value={aiVerified} />
-          <StatCard icon={AlertTriangle} color="text-red-600" bg="bg-red-100" title="Manual Reviews Needed" value={manualReviews} />
+          <StatCard icon={Wrench} color="text-purple-600" bg="bg-purple-100" title="Pending Contractors" value={pendingContractors.length} />
         </div>
 
-        {/* Main Layout */}
+        {/* View Switcher Tabs */}
+        <div className="flex gap-2 border-b border-gray-200 mb-8">
+          <button
+            onClick={() => setActiveTab('complaints')}
+            className={`px-6 py-3 text-sm font-extrabold rounded-t-xl border-b-2 transition flex items-center gap-2 ${
+              activeTab === 'complaints'
+                ? 'border-[#3b5998] text-[#3b5998] bg-blue-50/50'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ClipboardList size={16} /> Complaints & City Map
+          </button>
+          <button
+            onClick={() => setActiveTab('contractors')}
+            className={`px-6 py-3 text-sm font-extrabold rounded-t-xl border-b-2 transition flex items-center gap-2 ${
+              activeTab === 'contractors'
+                ? 'border-[#3b5998] text-[#3b5998] bg-blue-50/50'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ShieldCheck size={16} /> Contractor Approvals
+            {pendingContractors.length > 0 && (
+              <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                {pendingContractors.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Tab 2: Contractor Approvals View */}
+        {activeTab === 'contractors' && (
+          <div className="mb-12">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-[#3b5998]">Contractor Registration Approvals</h2>
+                <p className="text-xs text-gray-500">
+                  Municipal authorities can verify and grant road repair assignment rights to verified contractors.
+                </p>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center text-gray-500 font-bold">
+                Loading contractor requests...
+              </div>
+            ) : pendingContractors.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
+                <Check size={40} className="text-green-500 mx-auto mb-2" />
+                <h3 className="font-extrabold text-gray-800 text-base">All Contractors Approved</h3>
+                <p className="text-gray-500 text-xs mt-1">There are no pending contractor applications awaiting municipal authorization.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingContractors.map(c => (
+                  <div key={c._id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="bg-blue-100 text-blue-800 font-bold text-xs px-2.5 py-0.5 rounded-full">
+                          🛠️ Road Contractor
+                        </span>
+                        <span className="text-[11px] text-gray-400">Registered: {formatDate(c.created_at)}</span>
+                      </div>
+                      <h3 className="text-lg font-black text-[#1e2a4a]">{c.name}</h3>
+                      <p className="text-xs font-mono text-gray-500 mb-3">{c.email}</p>
+                      
+                      <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 mb-4 space-y-1">
+                        <p><strong className="text-gray-800">Phone:</strong> {c.phone || 'Not provided'}</p>
+                        <p><strong className="text-gray-800">Operating Area:</strong> {c.area || 'All Sectors'}</p>
+                        <p><strong className="text-gray-800">Status:</strong> <span className="text-amber-600 font-bold">Pending Municipal Approval</span></p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => handleRejectContractor(c._id, c.name)}
+                        disabled={actionLoading === c._id}
+                        className="flex-1 py-2 px-3 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 disabled:opacity-50"
+                      >
+                        <UserX size={14} /> Reject
+                      </button>
+                      <button
+                        onClick={() => handleApproveContractor(c._id, c.name)}
+                        disabled={actionLoading === c._id}
+                        className="flex-1 py-2 px-3 bg-[#3b5998] hover:bg-[#2d4373] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm disabled:opacity-50"
+                      >
+                        <UserCheck size={14} /> {actionLoading === c._id ? 'Approving...' : 'Authorize Contractor'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 1: Complaints & Map View */}
+        {activeTab === 'complaints' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
           {/* All Complaints List */}
@@ -180,6 +331,7 @@ export default function MunicipalDashboard() {
             </MapContainer>
           </div>
         </div>
+        )}
       </div>
 
       {/* Assign Contractor Modal */}

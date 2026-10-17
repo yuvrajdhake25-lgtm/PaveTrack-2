@@ -48,3 +48,29 @@ export const signup = async (data) => {
   const response = await client.post('/auth/signup', data);
   return response.data;
 };
+
+export const getMe = async () => {
+  const response = await client.get('/auth/me');
+  return response.data;
+};
+
+export const getPendingApprovals = async () => {
+  const response = await client.get('/approvals/pending');
+  return response.data;
+};
+
+export const getAllUsers = async () => {
+  const response = await client.get('/admin/users');
+  return response.data;
+};
+
+export const approveUser = async (userId) => {
+  const response = await client.patch(`/approvals/${userId}/approve`);
+  return response.data;
+};
+
+export const rejectUser = async (userId) => {
+  const response = await client.patch(`/approvals/${userId}/reject`);
+  return response.data;
+};
+

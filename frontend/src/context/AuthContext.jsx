@@ -11,7 +11,17 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem('user');
     if (token && savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+        // Silently fetch fresh user profile if token is valid
+        import('../api/complaints').then(({ getMe }) => {
+          getMe().then(freshUser => {
+            if (freshUser) {
+              setUser(freshUser);
+              localStorage.setItem('user', JSON.stringify(freshUser));
+            }
+          }).catch(() => {});
+        });
       } catch (e) {
         console.error("Error parsing user from localStorage");
       }
@@ -25,6 +35,21 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
+  const refreshUser = async () => {
+    try {
+      const { getMe } = await import('../api/complaints');
+      const freshUser = await getMe();
+      if (freshUser) {
+        setUser(freshUser);
+        localStorage.setItem('user', JSON.stringify(freshUser));
+        return freshUser;
+      }
+    } catch (e) {
+      console.error("Failed to refresh user:", e);
+    }
+    return user;
+  };
+
   const logoutContext = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -34,8 +59,9 @@ export const AuthProvider = ({ children }) => {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <AuthContext.Provider value={{ user, loginContext, logoutContext, logout: logoutContext }}>
+    <AuthContext.Provider value={{ user, loginContext, logoutContext, logout: logoutContext, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
